@@ -42,7 +42,7 @@ export function classify(text, { graduateStreak = 4 } = {}) {
   let graduated = 0;
   let skipped = 0;
   let total = 0;
-  const outLines = [outHeader.join('\t')];
+  const kept = [];
 
   for (let r = i + 1; r < lines.length; r++) {
     const line = lines[r];
@@ -86,8 +86,16 @@ export function classify(text, { graduateStreak = 4 } = {}) {
     // Extra fields beyond the header pass through unchanged.
     for (let c = width; c < fields.length; c++) out.push(fields[c]);
     while (out.length > 0 && out[out.length - 1] === '') out.pop();
-    outLines.push(out.join('\t'));
+    kept.push({ rc, cc, line: out.join('\t') });
   }
+
+  // Accuracy ascending (exact integer compare), unreviewed (rc == 0) last.
+  // Array.prototype.sort is stable, so ties keep input order.
+  kept.sort((a, b) => {
+    if (a.rc === 0 || b.rc === 0) return (a.rc === 0) - (b.rc === 0);
+    return a.cc * b.rc - b.cc * a.rc;
+  });
+  const outLines = [outHeader.join('\t'), ...kept.map((k) => k.line)];
 
   return { output: outLines.join('\n') + '\n', counts, excluded, graduated, skipped, total };
 }

@@ -105,6 +105,21 @@ test('missing or invalid streak is skipped', () => {
   assert.equal(res.graduated, 0);
 });
 
+test('sorts by accuracy ascending, stable ties, unreviewed last', () => {
+  const res = classify(deck(
+    `z0a\tb\tc\tx\t${st(0, 0)}`,
+    `t1\tb\tc\tx\t${st(10, 7)}`,
+    `t2\tb\tc\tx\t${st(5, 2)}`,
+    `z0b\tb\tc\tx\t${st(0, 0)}`,
+    `t3\tb\tc\tx\t${st(10, 4)}`,
+    `t4\tb\tc\tx\t${st(3, 0)}`,
+    `t5\tb\tc\tx\t${st(3, 1)}`,
+    `t6\tb\tc\tx\t${st(6, 2)}`,
+  ));
+  const names = outRows(res).slice(1).map((l) => l.split('\t')[0]);
+  assert.deepEqual(names, ['t4', 't5', 't6', 't2', 't3', 't1', 'z0a', 'z0b']);
+});
+
 test('strips a leading UTF-8 BOM', () => {
   const res = classify('\uFEFF' + deck(`a\tb\tc\tx\t${st(5, 2)}`));
   assert.equal(outRows(res)[0].startsWith('Text 1'), true);
@@ -151,6 +166,13 @@ test('sample deck totals', { skip: !existsSync(samplePath) }, () => {
   assert.equal(res.skipped, 0);
   assert.deepEqual(res.counts, { 0: 33, 1: 0, 2: 4, 3: 17, 4: 30, 5: 9 });
   assert.equal(outRows(res).length, 94);
+  const cats = outRows(res).slice(1).map((l) => Number(l.split('\t')[3]));
+  const firstZero = cats.indexOf(0);
+  assert.equal(firstZero, cats.length - 33);
+  assert.equal(cats.slice(firstZero).every((c) => c === 0), true);
+  const reviewed = cats.slice(0, firstZero);
+  assert.equal(reviewed.every((c) => c >= 1 && c <= 5), true);
+  assert.deepEqual(reviewed, [...reviewed].sort((a, b) => a - b));
 
   const off = classify(text, { graduateStreak: 0 });
   assert.equal(off.graduated, 0);
