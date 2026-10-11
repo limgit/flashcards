@@ -73,6 +73,38 @@ test('trims trailing empties but keeps inner ones and pipes', () => {
   assert.equal(lines[2], 'd\te\tf\t3\tx');
 });
 
+const sk = (rc, cc, streak) => `2,0,${rc},${cc},${streak},2,10,2026-01-01 00:00,2026-01-02 00:00,2026-01-01 00:00`;
+
+test('graduation boundary: streak == N graduated, N-1 kept', () => {
+  const res = classify(deck(`a\tb\tc\tx\t${sk(10, 5, 4)}`, `d\te\tf\tx\t${sk(10, 5, 3)}`));
+  assert.equal(res.graduated, 1);
+  assert.equal(res.counts[3], 1);
+  assert.equal(outRows(res).length, 2);
+  assert.equal(outRows(res)[1].startsWith('d\t'), true);
+});
+
+test('graduateStreak option customizes and 0 disables', () => {
+  const d = deck(`a\tb\tc\tx\t${sk(10, 5, 4)}`);
+  assert.equal(classify(d, { graduateStreak: 5 }).graduated, 0);
+  assert.equal(classify(d, { graduateStreak: 2 }).graduated, 1);
+  const off = classify(d, { graduateStreak: 0 });
+  assert.equal(off.graduated, 0);
+  assert.equal(off.counts[3], 1);
+});
+
+test('graduation does not affect rc=0 or 100% rows', () => {
+  const res = classify(deck(`a\tb\tc\tx\t${sk(0, 0, 9)}`, `d\te\tf\tx\t${sk(6, 6, 9)}`));
+  assert.equal(res.counts[0], 1);
+  assert.equal(res.excluded, 1);
+  assert.equal(res.graduated, 0);
+});
+
+test('missing or invalid streak is skipped', () => {
+  const res = classify(deck(`a\tb\tc\tx\t2,0,5,2`, `d\te\tf\tx\t2,0,5,2,abc,1`, `g\th\ti\tx\t2,0,5,2,-1,1`));
+  assert.equal(res.skipped, 3);
+  assert.equal(res.graduated, 0);
+});
+
 test('strips a leading UTF-8 BOM', () => {
   const res = classify('\uFEFF' + deck(`a\tb\tc\tx\t${st(5, 2)}`));
   assert.equal(outRows(res)[0].startsWith('Text 1'), true);
@@ -111,10 +143,17 @@ test('errors on missing header or Statistics column', () => {
 
 const samplePath = new URL('./.ignore/sample.txt', import.meta.url);
 test('sample deck totals', { skip: !existsSync(samplePath) }, () => {
-  const res = classify(readFileSync(samplePath, 'utf8'));
+  const text = readFileSync(samplePath, 'utf8');
+  const res = classify(text);
   assert.equal(res.total, 434);
   assert.equal(res.excluded, 281);
+  assert.equal(res.graduated, 60);
   assert.equal(res.skipped, 0);
-  assert.deepEqual(res.counts, { 0: 33, 1: 0, 2: 4, 3: 18, 4: 50, 5: 48 });
-  assert.equal(outRows(res).length, 154);
+  assert.deepEqual(res.counts, { 0: 33, 1: 0, 2: 4, 3: 17, 4: 30, 5: 9 });
+  assert.equal(outRows(res).length, 94);
+
+  const off = classify(text, { graduateStreak: 0 });
+  assert.equal(off.graduated, 0);
+  assert.deepEqual(off.counts, { 0: 33, 1: 0, 2: 4, 3: 18, 4: 50, 5: 48 });
+  assert.equal(outRows(off).length, 154);
 });

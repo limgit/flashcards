@@ -3,7 +3,7 @@
 const STATS_RE = /^Statistics \d+$/;
 const NON_NEGATIVE_INT = /^\d+$/;
 
-export function classify(text) {
+export function classify(text, { graduateStreak = 4 } = {}) {
   const lines = String(text).replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
 
   let i = 0;
@@ -39,6 +39,7 @@ export function classify(text) {
 
   const counts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   let excluded = 0;
+  let graduated = 0;
   let skipped = 0;
   let total = 0;
   const outLines = [outHeader.join('\t')];
@@ -52,12 +53,13 @@ export function classify(text) {
     while (fields.length < width) fields.push('');
 
     const stats = fields[statsIdx].split(',').map((s) => s.trim());
-    if (stats.length < 4 || !NON_NEGATIVE_INT.test(stats[2]) || !NON_NEGATIVE_INT.test(stats[3])) {
+    if (stats.length < 5 || !NON_NEGATIVE_INT.test(stats[2]) || !NON_NEGATIVE_INT.test(stats[3]) || !NON_NEGATIVE_INT.test(stats[4])) {
       skipped++;
       continue;
     }
     const rc = Number(stats[2]);
     const cc = Number(stats[3]);
+    const streak = Number(stats[4]);
 
     let category;
     if (rc === 0) {
@@ -67,6 +69,9 @@ export function classify(text) {
       continue;
     } else if (cc === rc) {
       excluded++;
+      continue;
+    } else if (graduateStreak > 0 && streak >= graduateStreak) {
+      graduated++;
       continue;
     } else {
       category = Math.floor((5 * cc) / rc) + 1;
@@ -84,5 +89,5 @@ export function classify(text) {
     outLines.push(out.join('\t'));
   }
 
-  return { output: outLines.join('\n') + '\n', counts, excluded, skipped, total };
+  return { output: outLines.join('\n') + '\n', counts, excluded, graduated, skipped, total };
 }

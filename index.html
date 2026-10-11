@@ -41,6 +41,13 @@
   button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
   button:disabled { opacity: .5; cursor: default; }
   input[type=file] { display: none; }
+  .opt { margin-top: 12px; }
+  .opt label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .opt input[type=number] {
+    width: 4.5rem; font: inherit; padding: 6px 8px; color: var(--fg);
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .opt .note { margin: 4px 0 0; }
   .error { color: var(--error); margin: 12px 0 0; font-weight: 600; }
   .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
   .stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
@@ -57,6 +64,10 @@
   <textarea id="input" spellcheck="false" placeholder="내보낸 덱 텍스트를 붙여넣거나, 파일을 이 영역에 끌어다 놓으세요."></textarea>
   <div class="row">
     <label class="filebtn">파일 선택<input type="file" id="file" accept=".txt,.tsv,text/plain"></label>
+  </div>
+  <div class="opt">
+    <label>연속 정답 <input type="number" id="grad" min="0" step="1" value="4" inputmode="numeric" autocomplete="off"> 회 이상이면 졸업(제외)</label>
+    <p class="note">0을 입력하면 졸업 기능이 꺼집니다.</p>
   </div>
   <p class="error" id="error" role="alert" hidden></p>
 
@@ -76,8 +87,10 @@ import { classify } from './classifier.js';
 
 const $ = (id) => document.getElementById(id);
 const input = $('input'), output = $('output'), errorEl = $('error'), summary = $('summary');
+const gradEl = $('grad');
 const copyBtn = $('copy'), dlBtn = $('download');
 let baseName = 'review';
+let graduateStreak = 4;
 
 const LABELS = ['0 · 미복습', '1 · 0–20%', '2 · 20–40%', '3 · 40–60%', '4 · 60–80%', '5 · 80–100% 미만'];
 
@@ -92,8 +105,9 @@ function card(label, value) {
 
 function render(res) {
   summary.replaceChildren();
-  if (!res) { summary.append(card('전체 행', '-'), card('제외 (100%)', '-')); return; }
-  summary.append(card('전체 행', res.total), card('제외 (100%)', res.excluded));
+  const gradLabel = graduateStreak > 0 ? `졸업 (연속 정답 ${graduateStreak}회 이상)` : '졸업 (꺼짐)';
+  if (!res) { summary.append(card('전체 행', '-'), card('제외 (100%)', '-'), card(gradLabel, '-')); return; }
+  summary.append(card('전체 행', res.total), card('제외 (100%)', res.excluded), card(gradLabel, res.graduated));
   for (let c = 0; c <= 5; c++) summary.append(card('카테고리 ' + LABELS[c], res.counts[c]));
   if (res.skipped) summary.append(card('건너뜀 (통계 오류)', res.skipped));
 }
@@ -103,7 +117,7 @@ function process() {
   const text = input.value;
   if (!text.trim()) { output.value = ''; render(null); copyBtn.disabled = dlBtn.disabled = true; return; }
   try {
-    const res = classify(text);
+    const res = classify(text, { graduateStreak });
     output.value = res.output;
     render(res);
     copyBtn.disabled = dlBtn.disabled = false;
@@ -129,6 +143,12 @@ async function loadFile(file) {
   }
 }
 
+gradEl.addEventListener('input', () => {
+  const v = gradEl.value.trim();
+  if (!/^\d+$/.test(v)) return;
+  graduateStreak = Number(v);
+  process();
+});
 input.addEventListener('input', () => { baseName = 'review'; process(); });
 $('file').addEventListener('change', (e) => { loadFile(e.target.files[0]); e.target.value = ''; });
 window.addEventListener('dragover', (e) => {
